@@ -21,6 +21,22 @@ export const metadata: Metadata = {
     apple: { url: "/favicon/apple-touch-icon.png" },
   },
   manifest: "/site.webmanifest",
+  openGraph: {
+    title: "Git Painter",
+    description: "Paint your GitHub contribution graph with custom commit history.",
+    type: "website",
+    images: [
+      { url: "/static/1.png", alt: "Git Painter – Date Range step" },
+      { url: "/static/2.png", alt: "Git Painter – Intensity & Style step" },
+      { url: "/static/3.png", alt: "Git Painter – Review & Generate step" },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Git Painter",
+    description: "Paint your GitHub contribution graph with custom commit history.",
+    images: ["/static/1.png"],
+  },
 };
 
 export default function RootLayout({
