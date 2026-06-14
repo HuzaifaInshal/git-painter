@@ -8,7 +8,10 @@ import { StepCommitStyle } from '@/components/steps/StepCommitStyle';
 import { StepAdvanced } from '@/components/steps/StepAdvanced';
 import { StepReview } from '@/components/steps/StepReview';
 import { CalendarHeatmap } from '@/components/CalendarHeatmap';
+import { DayEditor } from '@/components/DayEditor';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useRouter } from 'next/navigation';
 
 const STEPS = [
   { number: 1, label: 'Date Range', icon: '📅' },
@@ -30,17 +33,44 @@ function StepComponent({ step }: { step: number }) {
 }
 
 export default function Home() {
-  const { currentStep, setStep, config, previewPlan, setPreviewPlan } = useGeneratorStore();
+  const { 
+    currentStep, 
+    setStep, 
+    config, 
+    previewPlan, 
+    setPreviewPlan, 
+    appMode, 
+    setAppMode,
+    selectedDate,
+    setSelectedDate,
+    manualOverrides
+  } = useGeneratorStore();
   const contentRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
 
   const updatePreview = useCallback(() => {
+    if (appMode !== 'create') return;
     try {
-      const plan = generateCommitPlan(config);
+      let plan = generateCommitPlan(config);
+
+      // Apply manual overrides
+      const overrideDates = Object.keys(manualOverrides);
+      if (overrideDates.length > 0) {
+        // Filter out generated commits for overridden dates
+        plan = plan.filter(c => !manualOverrides[c.date]);
+        // Add manual commits
+        overrideDates.forEach(date => {
+          plan.push(...manualOverrides[date]);
+        });
+        // Re-sort
+        plan.sort((a, b) => a.datetime.getTime() - b.datetime.getTime());
+      }
+
       setPreviewPlan(plan);
     } catch {
       // ignore preview errors
     }
-  }, [config, setPreviewPlan]);
+  }, [config, setPreviewPlan, appMode, manualOverrides]);
 
   useEffect(() => {
     const timer = setTimeout(updatePreview, 300);
@@ -61,6 +91,49 @@ export default function Home() {
     return () => cancelAnimationFrame(raf);
   }, [currentStep]);
 
+  if (appMode === 'idle') {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="max-w-4xl w-full grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Card 
+            className="cursor-pointer hover:border-primary/50 transition-all hover:shadow-2xl hover:shadow-primary/10 group"
+            onClick={() => setAppMode('create')}
+          >
+            <CardHeader className="text-center pb-2">
+              <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center text-3xl mx-auto mb-4 group-hover:scale-110 transition-transform">
+                🎨
+              </div>
+              <CardTitle className="text-2xl">Create New Repo</CardTitle>
+              <CardDescription>Generate a fresh repository with a custom contribution pattern from scratch.</CardDescription>
+            </CardHeader>
+            <CardContent className="text-center">
+              <Button className="w-full">Get Started</Button>
+            </CardContent>
+          </Card>
+
+          <Card 
+            className="cursor-pointer hover:border-primary/50 transition-all hover:shadow-2xl hover:shadow-primary/10 group"
+            onClick={() => {
+              setAppMode('modify');
+              router.push('/modify');
+            }}
+          >
+            <CardHeader className="text-center pb-2">
+              <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center text-3xl mx-auto mb-4 group-hover:scale-110 transition-transform">
+                📂
+              </div>
+              <CardTitle className="text-2xl">Modify Existing</CardTitle>
+              <CardDescription>Upload a .git zip to extend its history or modify existing commits.</CardDescription>
+            </CardHeader>
+            <CardContent className="text-center">
+              <Button variant="outline" className="w-full">Upload Repo</Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   const progress = ((currentStep - 1) / (STEPS.length - 1)) * 100;
 
   return (
@@ -74,7 +147,7 @@ export default function Home() {
       {/* Header */}
       <header className="sticky top-0 z-20 border-b border-border/50 bg-background/80 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 cursor-pointer" onClick={() => setAppMode('idle')}>
             <div className="w-8 h-8 rounded-lg bg-primary/15 border border-primary/30 flex items-center justify-center text-sm">
               🎨
             </div>
@@ -97,9 +170,9 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex gap-5">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex flex-col md:flex-row gap-8">
         {/* Sidebar */}
-        <aside className="hidden md:flex flex-col w-52 shrink-0 gap-1 pt-1">
+        <aside className="hidden md:flex flex-col w-52 shrink-0 gap-1 pt-1 sticky top-24 h-fit">
           {/* Progress bar */}
           <div className="mb-4 px-1">
             <div className="flex justify-between text-[11px] text-muted-foreground mb-1.5">
@@ -149,7 +222,7 @@ export default function Home() {
         </aside>
 
         {/* Main content */}
-        <main className="flex-1 min-w-0">
+        <main className="flex-1 min-w-0 space-y-6">
           {/* Mobile step tabs */}
           <div className="flex md:hidden gap-1 mb-4 overflow-x-auto pb-1 scrollbar-none">
             {STEPS.map((s) => (
@@ -167,63 +240,76 @@ export default function Home() {
             ))}
           </div>
 
-          {/* Step card */}
-          <div className="rounded-xl border border-border/60 bg-card/50 backdrop-blur-sm p-6 shadow-xl shadow-black/20">
-            <div ref={contentRef}>
-              <StepComponent step={currentStep} />
+          {/* Live preview panel - NOW AT TOP */}
+          <div className="rounded-xl border border-border/60 bg-card/50 backdrop-blur-sm p-6 shadow-xl shadow-black/20 overflow-hidden">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-semibold text-foreground">Live Preview</h3>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/20 font-medium animate-pulse">
+                  LIVE
+                </span>
+              </div>
+              <div className="flex gap-4">
+                <div className="flex flex-col items-end">
+                  <div className="text-sm font-bold text-primary tabular-nums">{previewPlan.length}</div>
+                  <div className="text-[9px] text-muted-foreground uppercase tracking-wider">commits</div>
+                </div>
+                <div className="flex flex-col items-end">
+                  <div className="text-sm font-bold text-primary tabular-nums">
+                    {new Set(previewPlan.map((c) => c.date)).size}
+                  </div>
+                  <div className="text-[9px] text-muted-foreground uppercase tracking-wider">active days</div>
+                </div>
+              </div>
             </div>
-          </div>
-
-          {/* Navigation */}
-          {currentStep < 5 && (
-            <div className="flex justify-between mt-4">
-              <Button
-                variant="outline"
-                onClick={() => setStep(Math.max(1, currentStep - 1))}
-                disabled={currentStep === 1}
-                className="border-border/60 hover:bg-accent transition-all duration-200"
-              >
-                ← Back
-              </Button>
-              <Button
-                onClick={() => setStep(Math.min(5, currentStep + 1))}
-                className="bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-200 shadow-lg shadow-primary/20"
-              >
-                Next →
-              </Button>
-            </div>
-          )}
-        </main>
-
-        {/* Live preview panel */}
-        <aside className="hidden lg:block w-72 shrink-0">
-          <div className="rounded-xl border border-border/60 bg-card/50 backdrop-blur-sm p-4 sticky top-20 shadow-xl shadow-black/20">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-foreground">Live Preview</h3>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/20 font-medium">
-                LIVE
-              </span>
-            </div>
+            
             <CalendarHeatmap
               plan={previewPlan}
               startDate={config.dateRange.startDate}
               endDate={config.dateRange.endDate}
               skipDates={config.dateRange.skipDates}
+              onDayClick={setSelectedDate}
+              selectedDate={selectedDate}
             />
-            <div className="mt-3 pt-3 border-t border-border/50 grid grid-cols-2 gap-2">
-              <div className="rounded-lg bg-muted/50 px-3 py-2 text-center">
-                <div className="text-lg font-bold text-primary tabular-nums">{previewPlan.length}</div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">commits</div>
-              </div>
-              <div className="rounded-lg bg-muted/50 px-3 py-2 text-center">
-                <div className="text-lg font-bold text-primary tabular-nums">
-                  {new Set(previewPlan.map((c) => c.date)).size}
-                </div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">active days</div>
-              </div>
-            </div>
           </div>
-        </aside>
+
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+            <div className={`${selectedDate ? 'xl:col-span-8' : 'xl:col-span-12'} space-y-4`}>
+              {/* Step card */}
+              <div className="rounded-xl border border-border/60 bg-card/50 backdrop-blur-sm p-6 shadow-xl shadow-black/20 transition-all duration-300">
+                <div ref={contentRef}>
+                  <StepComponent step={currentStep} />
+                </div>
+              </div>
+
+              {/* Navigation */}
+              {currentStep < 5 && (
+                <div className="flex justify-between mt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => setStep(Math.max(1, currentStep - 1))}
+                    disabled={currentStep === 1}
+                    className="border-border/60 hover:bg-accent transition-all duration-200"
+                  >
+                    ← Back
+                  </Button>
+                  <Button
+                    onClick={() => setStep(Math.min(5, currentStep + 1))}
+                    className="bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-200 shadow-lg shadow-primary/20"
+                  >
+                    Next →
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {selectedDate && (
+              <div className="xl:col-span-4 sticky top-20 animate-in slide-in-from-right-4 duration-300">
+                <DayEditor />
+              </div>
+            )}
+          </div>
+        </main>
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { GeneratorConfig, CommitPlan } from '@/lib/types';
+import { GeneratorConfig, CommitPlan, ParsedCommit } from '@/lib/types';
 import { format, subMonths } from 'date-fns';
 
 const today = new Date();
@@ -42,12 +42,21 @@ export const DEFAULT_CONFIG: GeneratorConfig = {
   },
 };
 
+export type AppMode = 'idle' | 'create' | 'modify';
+
 interface GeneratorStore {
+  appMode: AppMode;
   currentStep: number;
   config: GeneratorConfig;
   previewPlan: CommitPlan[];
+  manualOverrides: Record<string, CommitPlan[]>; // date -> commits
+  uploadedCommits: ParsedCommit[];
+  uploadedFile: File | null;
+  selectedDate: string | null;
   isGenerating: boolean;
   generationProgress: number;
+
+  setAppMode: (mode: AppMode) => void;
   setStep: (step: number) => void;
   updateDateRange: (partial: Partial<GeneratorConfig['dateRange']>) => void;
   updateIntensity: (partial: Partial<GeneratorConfig['intensity']>) => void;
@@ -55,6 +64,10 @@ interface GeneratorStore {
   updateStyle: (partial: Partial<GeneratorConfig['style']>) => void;
   updateAdvanced: (partial: Partial<GeneratorConfig['advanced']>) => void;
   setPreviewPlan: (plan: CommitPlan[]) => void;
+  setUploadedCommits: (commits: ParsedCommit[]) => void;
+  setUploadedFile: (file: File | null) => void;
+  setSelectedDate: (date: string | null) => void;
+  updateManualOverride: (date: string, commits: CommitPlan[]) => void;
   setIsGenerating: (v: boolean) => void;
   setProgress: (v: number) => void;
   resetConfig: () => void;
@@ -63,11 +76,18 @@ interface GeneratorStore {
 export const useGeneratorStore = create<GeneratorStore>()(
   persist(
     (set) => ({
+      appMode: 'idle',
       currentStep: 1,
       config: DEFAULT_CONFIG,
       previewPlan: [],
+      manualOverrides: {},
+      uploadedCommits: [],
+      uploadedFile: null,
+      selectedDate: null,
       isGenerating: false,
       generationProgress: 0,
+
+      setAppMode: (mode) => set({ appMode: mode }),
       setStep: (step) => set({ currentStep: step }),
       updateDateRange: (partial) =>
         set((s) => ({ config: { ...s.config, dateRange: { ...s.config.dateRange, ...partial } } })),
@@ -80,9 +100,25 @@ export const useGeneratorStore = create<GeneratorStore>()(
       updateAdvanced: (partial) =>
         set((s) => ({ config: { ...s.config, advanced: { ...s.config.advanced, ...partial } } })),
       setPreviewPlan: (plan) => set({ previewPlan: plan }),
+      setUploadedCommits: (commits) => set({ uploadedCommits: commits }),
+      setUploadedFile: (file) => set({ uploadedFile: file }),
+      setSelectedDate: (date) => set({ selectedDate: date }),
+      updateManualOverride: (date, commits) =>
+        set((s) => ({
+          manualOverrides: { ...s.manualOverrides, [date]: commits },
+        })),
       setIsGenerating: (v) => set({ isGenerating: v }),
       setProgress: (v) => set({ generationProgress: v }),
-      resetConfig: () => set({ config: DEFAULT_CONFIG, currentStep: 1, previewPlan: [] }),
+      resetConfig: () => set({ 
+        config: DEFAULT_CONFIG, 
+        currentStep: 1, 
+        previewPlan: [], 
+        manualOverrides: {}, 
+        uploadedCommits: [],
+        uploadedFile: null,
+        selectedDate: null,
+        appMode: 'idle'
+      }),
     }),
     { name: 'gitpainter-config' }
   )
