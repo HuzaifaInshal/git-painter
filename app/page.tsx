@@ -194,7 +194,7 @@ export default function Home() {
               <button
                 key={s.number}
                 onClick={() => setStep(s.number)}
-                className={`group flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm text-left transition-all duration-200 ${
+                className={`group flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm text-left transition-all duration-200 cursor-pointer ${
                   isActive
                     ? 'bg-primary/15 text-primary border border-primary/25 glow-green'
                     : isDone

@@ -179,7 +179,7 @@ export function CalendarHeatmap({ plan, startDate, endDate, skipDates = [], onDa
           <button
             key={y}
             onClick={() => setActiveYear(y)}
-            className={`px-3 py-1 rounded-md text-[13px] font-medium transition-all ${
+            className={`px-3 py-1 rounded-md text-[13px] font-medium transition-all cursor-pointer ${
               activeYear === y
                 ? 'bg-primary text-primary-foreground'
                 : 'text-muted-foreground hover:bg-accent hover:text-foreground'

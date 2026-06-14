@@ -108,7 +108,7 @@ export function DayEditor() {
             </div>
             <button 
               onClick={() => handleDeleteCommit(i)}
-              className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-destructive text-destructive-foreground opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center shadow-lg"
+              className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-destructive text-destructive-foreground opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center shadow-lg cursor-pointer"
             >
               <Trash2 className="h-3 w-3" />
             </button>
