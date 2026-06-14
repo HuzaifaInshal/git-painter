@@ -187,8 +187,10 @@ export async function POST(req: NextRequest) {
       outZip.file(`.git/${f}`, content);
     }
 
-    const zipBuffer = await outZip.generateAsync({ type: 'nodebuffer' });
-    return new Response(zipBuffer, {
+    const blob = await outZip.generateAsync({ type: 'blob' });
+    const outArrayBuffer = await blob.arrayBuffer();
+
+    return new Response(outArrayBuffer, {
       headers: {
         'Content-Type': 'application/zip',
         'Content-Disposition': `attachment; filename="modified-${file.name}"`,

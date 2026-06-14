@@ -6,6 +6,7 @@ import { CalendarHeatmap } from '@/components/CalendarHeatmap';
 import { GenerationProgress } from '@/components/GenerationProgress';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
+import { ChevronRight } from 'lucide-react';
 
 export function StepReview() {
   const { config, previewPlan, setPreviewPlan, isGenerating, setIsGenerating, generationProgress, setProgress } =
@@ -71,7 +72,11 @@ export function StepReview() {
       <div className="p-4 border rounded-lg space-y-1">
         <div className="grid grid-cols-2 gap-x-4 text-sm">
           <span className="text-muted-foreground">Date range</span>
-          <span>{config.dateRange.startDate} → {config.dateRange.endDate}</span>
+          <span className="flex items-center gap-1.5">
+            {config.dateRange.startDate} 
+            <ChevronRight className="h-3 w-3 text-muted-foreground" /> 
+            {config.dateRange.endDate}
+          </span>
           <span className="text-muted-foreground">Author</span>
           <span>{config.style.authorName} &lt;{config.style.authorEmail}&gt;</span>
           <span className="text-muted-foreground">Branch</span>

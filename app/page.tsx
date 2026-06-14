@@ -12,6 +12,7 @@ import { DayEditor } from '@/components/DayEditor';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useRouter } from 'next/navigation';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 const STEPS = [
   { number: 1, label: 'Date Range', icon: '📅' },
@@ -289,15 +290,15 @@ export default function Home() {
                     variant="outline"
                     onClick={() => setStep(Math.max(1, currentStep - 1))}
                     disabled={currentStep === 1}
-                    className="border-border/60 hover:bg-accent transition-all duration-200"
+                    className="border-border/60 hover:bg-accent transition-all duration-200 gap-1.5"
                   >
-                    ← Back
+                    <ChevronLeft className="h-4 w-4" /> Back
                   </Button>
                   <Button
                     onClick={() => setStep(Math.min(5, currentStep + 1))}
-                    className="bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-200 shadow-lg shadow-primary/20"
+                    className="bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-200 shadow-lg shadow-primary/20 gap-1.5"
                   >
-                    Next →
+                    Next <ChevronRight className="h-4 w-4" />
                   </Button>
                 </div>
               )}

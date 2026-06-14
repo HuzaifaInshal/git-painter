@@ -64,7 +64,7 @@ export default function ModifyPage() {
     } catch (err: any) {
       setError(err.message);
     } finally {
-      setIsUploading(false);
+      setIsGenerating(false);
     }
   };
 

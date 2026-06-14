@@ -132,20 +132,18 @@ export function CalendarHeatmap({ plan, startDate, endDate, skipDates = [], onDa
                         const isSelected = selectedDate === day.date;
                         return (
                           <Tooltip key={di}>
-                            <TooltipTrigger asChild>
-                              <div
-                                onClick={() => day.inYear && onDayClick?.(day.date)}
-                                className={`w-[12px] h-[12px] rounded-[2px] cursor-pointer transition-all duration-200 ${
-                                  !day.inYear
-                                    ? 'bg-transparent pointer-events-none'
-                                    : day.skipped
-                                    ? 'bg-red-900/40 border border-red-500/20'
-                                    : isSelected
-                                    ? 'ring-2 ring-primary ring-offset-1 ring-offset-background z-10'
-                                    : getColor(day.count)
-                                }`}
-                              />
-                            </TooltipTrigger>
+                            <TooltipTrigger
+                              onClick={() => day.inYear && onDayClick?.(day.date)}
+                              className={`w-[12px] h-[12px] rounded-[2px] cursor-pointer transition-all duration-200 ${
+                                !day.inYear
+                                  ? 'bg-transparent pointer-events-none'
+                                  : day.skipped
+                                  ? 'bg-red-900/40 border border-red-500/20'
+                                  : isSelected
+                                  ? 'ring-2 ring-primary ring-offset-1 ring-offset-background z-10'
+                                  : getColor(day.count)
+                              }`}
+                            />
                             <TooltipContent side="top" className="text-[11px] px-2 py-1">
                               <span className="font-medium">{day.count} contributions</span> on {format(day.fullDate, 'MMM d, yyyy')}
                             </TooltipContent>
