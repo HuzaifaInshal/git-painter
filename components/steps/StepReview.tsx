@@ -46,9 +46,8 @@ export function StepReview() {
       const blob = await res.blob();
       setProgress(100);
 
-      // Dynamically import file-saver to avoid SSR issues
       const { saveAs } = await import('file-saver');
-      saveAs(blob, `${config.style.repoName}.zip`);
+      saveAs(blob, `${config.repoName}.zip`);
       setSuccess(true);
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Unknown error';
@@ -59,6 +58,10 @@ export function StepReview() {
   };
 
   const sample = [...previewPlan.slice(0, 5), ...previewPlan.slice(-5)];
+
+  const minDate = config.ranges.reduce((min, r) => r.startDate < min ? r.startDate : min, config.ranges[0]?.startDate || '');
+  const maxDate = config.ranges.reduce((max, r) => r.endDate > max ? r.endDate : max, config.ranges[0]?.endDate || '');
+  const finalBranch = config.ranges[config.ranges.length - 1]?.style.branchName || 'main';
 
   return (
     <div className="space-y-6">
@@ -71,22 +74,18 @@ export function StepReview() {
 
       <div className="p-4 border rounded-lg space-y-1">
         <div className="grid grid-cols-2 gap-x-4 text-sm">
-          <span className="text-muted-foreground">Date range</span>
+          <span className="text-muted-foreground">Full period</span>
           <span className="flex items-center gap-1.5">
-            {config.dateRange.startDate} 
+            {minDate} 
             <ChevronRight className="h-3 w-3 text-muted-foreground" /> 
-            {config.dateRange.endDate}
+            {maxDate}
           </span>
-          <span className="text-muted-foreground">Author</span>
-          <span>{config.style.authorName} &lt;{config.style.authorEmail}&gt;</span>
-          <span className="text-muted-foreground">Branch</span>
-          <span>{config.style.branchName}</span>
           <span className="text-muted-foreground">Repo name</span>
-          <span>{config.style.repoName}</span>
-          <span className="text-muted-foreground">Intensity</span>
-          <span>{config.intensity.minPerDay}–{config.intensity.maxPerDay} commits/day · {config.intensity.activeDayPercentage}% active days</span>
-          <span className="text-muted-foreground">Message style</span>
-          <span>{config.style.messageStyle}</span>
+          <span>{config.repoName}</span>
+          <span className="text-muted-foreground">Final Branch</span>
+          <span>{finalBranch}</span>
+          <span className="text-muted-foreground">Segments</span>
+          <span>{config.ranges.length} range(s) configured</span>
         </div>
       </div>
 
@@ -94,9 +93,9 @@ export function StepReview() {
         <h3 className="text-sm font-medium mb-2">Commit Preview</h3>
         <CalendarHeatmap
           plan={previewPlan}
-          startDate={config.dateRange.startDate}
-          endDate={config.dateRange.endDate}
-          skipDates={config.dateRange.skipDates}
+          startDate={minDate}
+          endDate={maxDate}
+          skipDates={config.skipDates}
         />
       </div>
 
@@ -131,9 +130,9 @@ export function StepReview() {
           <p className="font-medium text-green-800">Download started!</p>
           <ol className="list-decimal list-inside space-y-1 text-green-700">
             <li>Unzip the downloaded file</li>
-            <li><code>cd {config.style.repoName}</code></li>
+            <li><code>cd {config.repoName}</code></li>
             <li><code>git remote add origin https://github.com/yourname/repo.git</code></li>
-            <li><code>git push -u origin {config.style.branchName} --force</code></li>
+            <li><code>git push -u origin {finalBranch} --force</code></li>
           </ol>
         </div>
       )}

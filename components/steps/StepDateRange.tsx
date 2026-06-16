@@ -4,6 +4,9 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { format, subDays, subMonths, subYears } from 'date-fns';
+import { Plus, Trash2 } from 'lucide-react';
+import { Card } from '@/components/ui/card';
+import { WeekendBehavior } from '@/lib/types';
 
 const QUICK_RANGES = [
   { label: 'Last 30 days', start: () => subDays(new Date(), 30) },
@@ -21,114 +24,144 @@ const WEEKEND_OPTIONS = [
 ] as const;
 
 export function StepDateRange() {
-  const { config, updateDateRange } = useGeneratorStore();
-  const { dateRange } = config;
+  const { config, updateGlobalConfig, addRange, removeRange, updateRange } = useGeneratorStore();
+  const { ranges = [] } = config;
 
   const today = format(new Date(), 'yyyy-MM-dd');
 
-  const totalDays = (() => {
-    const s = new Date(dateRange.startDate);
-    const e = new Date(dateRange.endDate);
-    return Math.max(0, Math.round((e.getTime() - s.getTime()) / 86400000) + 1);
-  })();
+  const handleAddRange = () => {
+    const lastRange = ranges[ranges.length - 1];
+    addRange(lastRange?.startDate || today, lastRange?.endDate || today);
+  };
 
-  const toggleWeekday = (dow: number) => {
-    const current = dateRange.skipWeekdays;
-    updateDateRange({
-      skipWeekdays: current.includes(dow) ? current.filter((d) => d !== dow) : [...current, dow],
+  const toggleRangeWeekday = (rangeId: string, currentSkip: number[], dow: number) => {
+    updateRange(rangeId, {
+      skipWeekdays: currentSkip.includes(dow) ? currentSkip.filter((d) => d !== dow) : [...currentSkip, dow],
     });
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-semibold mb-1">Date Range</h2>
-        <p className="text-sm text-muted-foreground">Choose when your commits should appear</p>
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        {QUICK_RANGES.map((r) => (
-          <Button
-            key={r.label}
-            variant="outline"
-            size="sm"
-            onClick={() =>
-              updateDateRange({
-                startDate: format(r.start(), 'yyyy-MM-dd'),
-                endDate: today,
-              })
-            }
-          >
-            {r.label}
+    <div className="space-y-8">
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold">Date Ranges</h2>
+          <Button size="sm" variant="outline" onClick={handleAddRange} className="gap-1 border-dashed">
+            <Plus className="w-4 h-4" /> Add Range
           </Button>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-1">
-          <Label>Start Date</Label>
-          <Input
-            type="date"
-            value={dateRange.startDate}
-            max={dateRange.endDate}
-            onChange={(e) => updateDateRange({ startDate: e.target.value })}
-          />
         </div>
-        <div className="space-y-1">
-          <Label>End Date</Label>
-          <Input
-            type="date"
-            value={dateRange.endDate}
-            min={dateRange.startDate}
-            max={today}
-            onChange={(e) => updateDateRange({ endDate: e.target.value })}
-          />
-        </div>
-      </div>
+        <p className="text-sm text-muted-foreground">Configure periods for commit generation. Each range has its own calendar rules.</p>
 
-      <div className="space-y-2">
-        <Label>Skip Weekdays</Label>
-        <div className="flex gap-2 flex-wrap">
-          {WEEKDAYS.map((day, i) => (
-            <button
-              key={day}
-              onClick={() => toggleWeekday(i)}
-              className={`px-3 py-1 rounded text-sm border transition-colors ${
-                dateRange.skipWeekdays.includes(i)
-                  ? 'bg-red-100 border-red-300 text-red-700'
-                  : 'bg-background border-border hover:bg-accent'
-              }`}
-            >
-              {day}
-            </button>
+        <div className="space-y-6">
+          {ranges.map((range, idx) => (
+            <Card key={range.id} className="p-5 space-y-6 relative border-border/60 bg-card/30">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-2 flex-1">
+                  <div className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">
+                    {idx + 1}
+                  </div>
+                  <Input 
+                    value={range.name}
+                    onChange={(e) => updateRange(range.id, { name: e.target.value })}
+                    className="h-8 font-medium bg-transparent border-none focus-visible:ring-1 p-0 px-2"
+                    placeholder="Range name"
+                  />
+                </div>
+                {idx > 0 && (
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                    onClick={() => removeRange(range.id)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">Start Date</Label>
+                  <Input
+                    type="date"
+                    className="h-9"
+                    value={range.startDate}
+                    onChange={(e) => updateRange(range.id, { startDate: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">End Date</Label>
+                  <Input
+                    type="date"
+                    className="h-9"
+                    value={range.endDate}
+                    onChange={(e) => updateRange(range.id, { endDate: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              {idx === 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {QUICK_RANGES.map((r) => (
+                    <Button
+                      key={r.label}
+                      variant="secondary"
+                      size="sm"
+                      className="h-7 text-[10px] px-2.5"
+                      onClick={() =>
+                        updateRange(range.id, {
+                          startDate: format(r.start(), 'yyyy-MM-dd'),
+                          endDate: today,
+                        })
+                      }
+                    >
+                      {r.label}
+                    </Button>
+                  ))}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 border-t border-border/30">
+                <div className="space-y-3">
+                  <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">Skip Weekdays</Label>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {WEEKDAYS.map((day, i) => (
+                      <button
+                        key={day}
+                        onClick={() => toggleRangeWeekday(range.id, range.skipWeekdays, i)}
+                        className={`w-9 h-8 rounded flex items-center justify-center text-[11px] border transition-colors ${
+                          range.skipWeekdays.includes(i)
+                            ? 'bg-red-500/10 border-red-500/30 text-red-500 font-bold'
+                            : 'bg-background border-border hover:bg-accent'
+                        }`}
+                      >
+                        {day[0]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">Weekend Behavior</Label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {WEEKEND_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        onClick={() => updateRange(range.id, { weekendBehavior: opt.value })}
+                        className={`py-1.5 px-2 rounded border text-[10px] text-center transition-colors ${
+                          range.weekendBehavior === opt.value
+                            ? 'border-primary bg-primary/5 text-primary font-medium'
+                            : 'border-border hover:bg-accent'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </Card>
           ))}
         </div>
-      </div>
-
-      <div className="space-y-2">
-        <Label>Weekend Behavior</Label>
-        <div className="grid grid-cols-2 gap-2">
-          {WEEKEND_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              onClick={() => updateDateRange({ weekendBehavior: opt.value })}
-              className={`p-3 rounded border text-sm text-left transition-colors ${
-                dateRange.weekendBehavior === opt.value
-                  ? 'border-primary bg-primary/5 font-medium'
-                  : 'border-border hover:bg-accent'
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="p-3 bg-muted rounded text-sm">
-        <span className="font-medium">{totalDays} total days</span>
-        {dateRange.skipDates.length > 0 && (
-          <span className="text-muted-foreground ml-2">· {dateRange.skipDates.length} skipped</span>
-        )}
       </div>
     </div>
   );

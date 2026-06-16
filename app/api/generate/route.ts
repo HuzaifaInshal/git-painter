@@ -10,12 +10,8 @@ export async function POST(req: NextRequest) {
   try {
     const config: GeneratorConfig = await req.json();
 
-    if (!config.dateRange?.startDate || !config.dateRange?.endDate) {
-      return NextResponse.json({ error: 'Invalid date range' }, { status: 400 });
-    }
-
-    if (config.intensity.minPerDay > config.intensity.maxPerDay) {
-      return NextResponse.json({ error: 'minPerDay must be <= maxPerDay' }, { status: 400 });
+    if (!config.ranges || config.ranges.length === 0) {
+      return NextResponse.json({ error: 'At least one date range is required' }, { status: 400 });
     }
 
     const plan = generateCommitPlan(config);
@@ -25,13 +21,13 @@ export async function POST(req: NextRequest) {
     }
 
     const { vol, repoPath } = await buildGitRepo(plan, config, () => {});
-    const blob = await buildZip(vol, repoPath, config.style.repoName);
+    const blob = await buildZip(vol, repoPath, config.repoName);
     const arrayBuffer = await blob.arrayBuffer();
 
     return new NextResponse(arrayBuffer, {
       headers: {
         'Content-Type': 'application/zip',
-        'Content-Disposition': `attachment; filename="${config.style.repoName}.zip"`,
+        'Content-Disposition': `attachment; filename="${config.repoName}.zip"`,
       },
     });
   } catch (err: unknown) {

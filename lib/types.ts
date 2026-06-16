@@ -4,14 +4,6 @@ export type TimeOfDayProfile = 'office-hours' | 'night-owl' | 'random' | 'custom
 export type WeekendBehavior = 'skip' | 'reduced' | 'same' | 'only-weekends';
 export type CommitMessageStyle = 'random-lorem' | 'conventional' | 'custom-list' | 'simple-counter';
 
-export interface DateRangeConfig {
-  startDate: string;
-  endDate: string;
-  skipDates: string[];
-  skipWeekdays: number[];
-  weekendBehavior: WeekendBehavior;
-}
-
 export interface IntensityConfig {
   level: IntensityLevel;
   minPerDay: number;
@@ -37,7 +29,6 @@ export interface CommitStyleConfig {
   authorName: string;
   authorEmail: string;
   branchName: string;
-  repoName: string;
 }
 
 export interface AdvancedConfig {
@@ -50,12 +41,28 @@ export interface AdvancedConfig {
   gpgSign: false;
 }
 
-export interface GeneratorConfig {
-  dateRange: DateRangeConfig;
+export interface ConfigRange {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  enabled: boolean;
+  isFixed?: boolean;
+  
+  // Calendar rules moved to range
+  skipWeekdays: number[];
+  weekendBehavior: WeekendBehavior;
+  
   intensity: IntensityConfig;
   time: TimeConfig;
   style: CommitStyleConfig;
   advanced: AdvancedConfig;
+}
+
+export interface GeneratorConfig {
+  repoName: string;
+  skipDates: string[]; // Still global as they are specific absolute dates
+  ranges: ConfigRange[];
 }
 
 export interface CommitPlan {
@@ -68,14 +75,6 @@ export interface CommitPlan {
 export interface FileChange {
   path: string;
   content: string;
-}
-
-export interface GenerationResult {
-  success: boolean;
-  commitCount: number;
-  daysWithCommits: number;
-  zipBlob?: Blob;
-  error?: string;
 }
 
 export interface ParsedCommit {

@@ -1,19 +1,19 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { GeneratorConfig, CommitPlan, ParsedCommit } from '@/lib/types';
+import { GeneratorConfig, CommitPlan, ParsedCommit, ConfigRange } from '@/lib/types';
 import { format, subMonths } from 'date-fns';
 
 const today = new Date();
 const threeMonthsAgo = subMonths(today, 3);
 
-export const DEFAULT_CONFIG: GeneratorConfig = {
-  dateRange: {
-    startDate: format(threeMonthsAgo, 'yyyy-MM-dd'),
-    endDate: format(today, 'yyyy-MM-dd'),
-    skipDates: [],
-    skipWeekdays: [],
-    weekendBehavior: 'reduced',
-  },
+const createDefaultRange = (startDate: string, endDate: string, name = 'Main Range'): ConfigRange => ({
+  id: crypto.randomUUID(),
+  name,
+  startDate,
+  endDate,
+  enabled: true,
+  skipWeekdays: [],
+  weekendBehavior: 'reduced',
   intensity: {
     level: 'moderate',
     minPerDay: 1,
@@ -30,7 +30,6 @@ export const DEFAULT_CONFIG: GeneratorConfig = {
     authorName: 'Dev User',
     authorEmail: 'dev@example.com',
     branchName: 'main',
-    repoName: 'my-project',
   },
   advanced: {
     seed: '',
@@ -40,6 +39,14 @@ export const DEFAULT_CONFIG: GeneratorConfig = {
     readmeContent: '# my-project\n\nA project with a rich commit history.',
     gpgSign: false,
   },
+});
+
+export const DEFAULT_CONFIG: GeneratorConfig = {
+  repoName: 'my-project',
+  skipDates: [],
+  ranges: [
+    createDefaultRange(format(threeMonthsAgo, 'yyyy-MM-dd'), format(today, 'yyyy-MM-dd'))
+  ],
 };
 
 export type AppMode = 'idle' | 'create' | 'modify';
@@ -58,11 +65,13 @@ interface GeneratorStore {
 
   setAppMode: (mode: AppMode) => void;
   setStep: (step: number) => void;
-  updateDateRange: (partial: Partial<GeneratorConfig['dateRange']>) => void;
-  updateIntensity: (partial: Partial<GeneratorConfig['intensity']>) => void;
-  updateTime: (partial: Partial<GeneratorConfig['time']>) => void;
-  updateStyle: (partial: Partial<GeneratorConfig['style']>) => void;
-  updateAdvanced: (partial: Partial<GeneratorConfig['advanced']>) => void;
+  
+  updateGlobalConfig: (partial: Partial<Omit<GeneratorConfig, 'ranges'>>) => void;
+  
+  addRange: (startDate: string, endDate: string, name?: string) => void;
+  removeRange: (id: string) => void;
+  updateRange: (id: string, partial: Partial<ConfigRange>) => void;
+  
   setPreviewPlan: (plan: CommitPlan[]) => void;
   setUploadedCommits: (commits: ParsedCommit[]) => void;
   setUploadedFile: (file: File | null) => void;
@@ -89,16 +98,36 @@ export const useGeneratorStore = create<GeneratorStore>()(
 
       setAppMode: (mode) => set({ appMode: mode }),
       setStep: (step) => set({ currentStep: step }),
-      updateDateRange: (partial) =>
-        set((s) => ({ config: { ...s.config, dateRange: { ...s.config.dateRange, ...partial } } })),
-      updateIntensity: (partial) =>
-        set((s) => ({ config: { ...s.config, intensity: { ...s.config.intensity, ...partial } } })),
-      updateTime: (partial) =>
-        set((s) => ({ config: { ...s.config, time: { ...s.config.time, ...partial } } })),
-      updateStyle: (partial) =>
-        set((s) => ({ config: { ...s.config, style: { ...s.config.style, ...partial } } })),
-      updateAdvanced: (partial) =>
-        set((s) => ({ config: { ...s.config, advanced: { ...s.config.advanced, ...partial } } })),
+      
+      updateGlobalConfig: (partial) =>
+        set((s) => ({ config: { ...s.config, ...partial } })),
+      
+      addRange: (startDate, endDate, name) =>
+        set((s) => ({
+          config: {
+            ...s.config,
+            ranges: [...(s.config.ranges || []), createDefaultRange(startDate, endDate, name)],
+          },
+        })),
+        
+      removeRange: (id) =>
+        set((s) => ({
+          config: {
+            ...s.config,
+            ranges: (s.config.ranges || []).filter((r) => r.id !== id),
+          },
+        })),
+        
+      updateRange: (id, partial) =>
+        set((s) => ({
+          config: {
+            ...s.config,
+            ranges: (s.config.ranges || []).map((r) =>
+              r.id === id ? { ...r, ...partial } : r
+            ),
+          },
+        })),
+
       setPreviewPlan: (plan) => set({ previewPlan: plan }),
       setUploadedCommits: (commits) => set({ uploadedCommits: commits }),
       setUploadedFile: (file) => set({ uploadedFile: file }),
@@ -120,6 +149,6 @@ export const useGeneratorStore = create<GeneratorStore>()(
         appMode: 'idle'
       }),
     }),
-    { name: 'gitpainter-config' }
+    { name: 'gitpainter-config-v3' }
   )
 );

@@ -4,8 +4,9 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
-import { TimeOfDayProfile } from '@/lib/types';
+import { TimeOfDayProfile, AdvancedConfig, TimeConfig } from '@/lib/types';
 import { useState } from 'react';
+import { ProfileAccordion } from '@/components/ProfileAccordion';
 
 const TIME_PROFILES: { value: TimeOfDayProfile; label: string; desc: string }[] = [
   { value: 'office-hours', label: 'Office Hours', desc: '9am–6pm' },
@@ -20,14 +21,19 @@ const FILE_MODES = [
   { value: 'empty-commits', label: 'Empty Commits', desc: 'No file changes (looks fake)' },
 ] as const;
 
-export function StepAdvanced() {
-  const { config, updateAdvanced, updateTime } = useGeneratorStore();
-  const { advanced, time } = config;
+interface AdvancedEditorProps {
+  advanced: AdvancedConfig;
+  time: TimeConfig;
+  onUpdateAdvanced: (partial: Partial<AdvancedConfig>) => void;
+  onUpdateTime: (partial: Partial<TimeConfig>) => void;
+}
+
+function AdvancedEditor({ advanced, time, onUpdateAdvanced, onUpdateTime }: AdvancedEditorProps) {
   const [copied, setCopied] = useState(false);
 
   const generateSeed = () => {
     const seed = Math.random().toString(36).substring(2, 10);
-    updateAdvanced({ seed });
+    onUpdateAdvanced({ seed });
   };
 
   const copySeed = () => {
@@ -38,18 +44,13 @@ export function StepAdvanced() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-semibold mb-1">Advanced Settings</h2>
-        <p className="text-sm text-muted-foreground">Fine-tune commit timing and file behavior</p>
-      </div>
-
       <div className="space-y-2">
         <Label>Time of Day Profile</Label>
         <div className="grid grid-cols-2 gap-2">
           {TIME_PROFILES.map((p) => (
             <button
               key={p.value}
-              onClick={() => updateTime({ profile: p.value })}
+              onClick={() => onUpdateTime({ profile: p.value })}
               className={`p-3 rounded border text-sm text-left transition-colors ${
                 time.profile === p.value
                   ? 'border-primary bg-primary/5 font-medium'
@@ -70,7 +71,7 @@ export function StepAdvanced() {
                 min={0}
                 max={23}
                 value={time.customStartHour ?? 9}
-                onChange={(e) => updateTime({ customStartHour: parseInt(e.target.value) })}
+                onChange={(e) => onUpdateTime({ customStartHour: parseInt(e.target.value) })}
               />
             </div>
             <div className="space-y-1">
@@ -80,7 +81,7 @@ export function StepAdvanced() {
                 min={0}
                 max={23}
                 value={time.customEndHour ?? 18}
-                onChange={(e) => updateTime({ customEndHour: parseInt(e.target.value) })}
+                onChange={(e) => onUpdateTime({ customEndHour: parseInt(e.target.value) })}
               />
             </div>
           </div>
@@ -93,7 +94,7 @@ export function StepAdvanced() {
           {FILE_MODES.map((m) => (
             <button
               key={m.value}
-              onClick={() => updateAdvanced({ fileChangeMode: m.value })}
+              onClick={() => onUpdateAdvanced({ fileChangeMode: m.value })}
               className={`w-full p-3 rounded border text-sm text-left transition-colors ${
                 advanced.fileChangeMode === m.value
                   ? 'border-primary bg-primary/5 font-medium'
@@ -114,7 +115,7 @@ export function StepAdvanced() {
         </div>
         <Switch
           checked={advanced.commitSizeVariance}
-          onCheckedChange={(v) => updateAdvanced({ commitSizeVariance: v })}
+          onCheckedChange={(v) => onUpdateAdvanced({ commitSizeVariance: v })}
         />
       </div>
 
@@ -125,7 +126,7 @@ export function StepAdvanced() {
         </div>
         <Switch
           checked={advanced.includeReadme}
-          onCheckedChange={(v) => updateAdvanced({ includeReadme: v })}
+          onCheckedChange={(v) => onUpdateAdvanced({ includeReadme: v })}
         />
       </div>
 
@@ -135,7 +136,7 @@ export function StepAdvanced() {
           <textarea
             className="w-full h-24 p-2 border rounded text-sm font-mono resize-none bg-background"
             value={advanced.readmeContent || ''}
-            onChange={(e) => updateAdvanced({ readmeContent: e.target.value })}
+            onChange={(e) => onUpdateAdvanced({ readmeContent: e.target.value })}
           />
         </div>
       )}
@@ -145,7 +146,7 @@ export function StepAdvanced() {
         <div className="flex gap-2">
           <Input
             value={advanced.seed || ''}
-            onChange={(e) => updateAdvanced({ seed: e.target.value })}
+            onChange={(e) => onUpdateAdvanced({ seed: e.target.value })}
             placeholder="Leave empty for random"
             className="flex-1"
           />
@@ -154,6 +155,35 @@ export function StepAdvanced() {
         </div>
         <p className="text-xs text-muted-foreground">Same seed = identical output every time</p>
       </div>
+    </div>
+  );
+}
+
+export function StepAdvanced() {
+  const { config, updateRange } = useGeneratorStore();
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-semibold mb-1">Advanced Settings</h2>
+        <p className="text-sm text-muted-foreground">Fine-tune commit timing and file behavior</p>
+      </div>
+
+      <ProfileAccordion
+        title="Advanced"
+        renderRange={(range) => (
+          <AdvancedEditor 
+            advanced={range.advanced}
+            time={range.time}
+            onUpdateAdvanced={(partial) => updateRange(range.id, { 
+              advanced: { ...range.advanced, ...partial } 
+            })}
+            onUpdateTime={(partial) => updateRange(range.id, { 
+              time: { ...range.time, ...partial } 
+            })}
+          />
+        )}
+      />
     </div>
   );
 }

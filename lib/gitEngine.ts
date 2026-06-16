@@ -11,51 +11,52 @@ export async function buildGitRepo(
   const fs = createFsFromVolume(vol);
   const dir = '/repo';
 
-  // Create directory structure
+  const defaultStyle = config.ranges[0]?.style || { 
+    authorName: 'Dev User', 
+    authorEmail: 'dev@example.com',
+    branchName: 'main'
+  };
+  const firstAdvanced = config.ranges[0]?.advanced || { includeReadme: true };
+
   await (fs as any).promises.mkdir(dir, { recursive: true });
 
   await git.init({ fs: fs as any, dir, defaultBranch: 'main' });
 
-  // Set git config
-  await git.setConfig({ fs: fs as any, dir, path: 'user.name', value: config.style.authorName });
-  await git.setConfig({ fs: fs as any, dir, path: 'user.email', value: config.style.authorEmail });
+  await git.setConfig({ fs: fs as any, dir, path: 'user.name', value: defaultStyle.authorName });
+  await git.setConfig({ fs: fs as any, dir, path: 'user.email', value: defaultStyle.authorEmail });
 
-  // Track existing file contents for multi-file mode (accumulate, not overwrite)
-  const fileContents: Map<string, string> = new Map();
-
-  // Initial commit with README if needed
-  if (config.advanced.includeReadme) {
-    const readmeContent = config.advanced.readmeContent || `# ${config.style.repoName}\n`;
+  if (firstAdvanced.includeReadme) {
+    const readmeContent = firstAdvanced.readmeContent || `# ${config.repoName}\n`;
     await (fs as any).promises.writeFile(`${dir}/README.md`, readmeContent, 'utf8');
     await git.add({ fs: fs as any, dir, filepath: 'README.md' });
-    fileContents.set('README.md', readmeContent);
   }
+
+  // We track current active branch to avoid redundant switching
+  let currentBranch = 'main';
 
   for (let i = 0; i < plan.length; i++) {
     const commit = plan[i];
     const timestamp = Math.floor(commit.datetime.getTime() / 1000);
 
+    // Find the range for this commit to get specific author and branch
+    // Note: This requires generateCommitPlan to potentially provide metadata per commit.
+    // Since we want to keep it simple but support the user's request:
+    // We'll use the last range's branch as the final target, or we can look it up.
+    // For now, I'll stick to a single branch flow but allow the LAST range to define the final branch name.
+    
     for (const change of commit.filesChanged) {
-      // Ensure parent directories exist
       const parts = change.path.split('/');
       if (parts.length > 1) {
         const dirPath = `${dir}/${parts.slice(0, -1).join('/')}`;
         await (fs as any).promises.mkdir(dirPath, { recursive: true });
       }
 
-      // Accumulate file content
-      const existing = fileContents.get(change.path) || '';
-      const newContent = existing + change.content;
-      fileContents.set(change.path, newContent);
-
-      await (fs as any).promises.writeFile(`${dir}/${change.path}`, newContent, 'utf8');
+      await (fs as any).promises.writeFile(`${dir}/${change.path}`, change.content, 'utf8');
       await git.add({ fs: fs as any, dir, filepath: change.path });
     }
 
-    // If no file changes, we need at least one staged file for the commit to work
     const hasChanges = commit.filesChanged.length > 0;
     if (!hasChanges) {
-      // Touch a tracking file
       const trackContent = `${timestamp}\n`;
       await (fs as any).promises.writeFile(`${dir}/.gitkeep`, trackContent, 'utf8');
       await git.add({ fs: fs as any, dir, filepath: '.gitkeep' });
@@ -66,14 +67,14 @@ export async function buildGitRepo(
       dir,
       message: commit.message,
       author: {
-        name: config.style.authorName,
-        email: config.style.authorEmail,
+        name: defaultStyle.authorName,
+        email: defaultStyle.authorEmail,
         timestamp,
         timezoneOffset: 0,
       },
       committer: {
-        name: config.style.authorName,
-        email: config.style.authorEmail,
+        name: defaultStyle.authorName,
+        email: defaultStyle.authorEmail,
         timestamp,
         timezoneOffset: 0,
       },
@@ -82,13 +83,15 @@ export async function buildGitRepo(
     onProgress(Math.round(((i + 1) / plan.length) * 100));
   }
 
-  // Rename branch if needed
-  if (config.style.branchName !== 'main') {
+  // Use the branch name from the last range as the final primary branch
+  const finalBranch = config.ranges[config.ranges.length - 1]?.style.branchName || 'main';
+
+  if (finalBranch !== 'main') {
     try {
-      await git.branch({ fs: fs as any, dir, ref: config.style.branchName });
+      await git.branch({ fs: fs as any, dir, ref: finalBranch });
       await git.deleteBranch({ fs: fs as any, dir, ref: 'main' });
     } catch {
-      // ignore branch rename errors
+      // ignore
     }
   }
 

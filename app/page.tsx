@@ -266,9 +266,9 @@ export default function Home() {
             
             <CalendarHeatmap
               plan={previewPlan}
-              startDate={config.dateRange.startDate}
-              endDate={config.dateRange.endDate}
-              skipDates={config.dateRange.skipDates}
+              startDate={config.ranges.reduce((min, r) => r.startDate < min ? r.startDate : min, config.ranges[0]?.startDate || '')}
+              endDate={config.ranges.reduce((max, r) => r.endDate > max ? r.endDate : max, config.ranges[0]?.endDate || '')}
+              skipDates={config.skipDates}
               onDayClick={setSelectedDate}
               selectedDate={selectedDate}
             />

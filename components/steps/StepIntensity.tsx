@@ -3,7 +3,8 @@ import { useGeneratorStore } from '@/store/generatorStore';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
-import { IntensityLevel, DistributionCurve } from '@/lib/types';
+import { IntensityLevel, DistributionCurve, IntensityConfig } from '@/lib/types';
+import { ProfileAccordion } from '@/components/ProfileAccordion';
 
 const INTENSITY_PRESETS: { level: IntensityLevel; label: string; min: number; max: number; colors: string }[] = [
   { level: 'minimal', label: 'Minimal', min: 1, max: 2, colors: 'bg-green-200' },
@@ -21,30 +22,21 @@ const CURVES: { value: DistributionCurve; label: string; desc: string }[] = [
   { value: 'random-spikes', label: 'Spikes', desc: 'Occasional bursts' },
 ];
 
-export function StepIntensity() {
-  const { config, updateIntensity } = useGeneratorStore();
-  const { intensity } = config;
+interface IntensityEditorProps {
+  intensity: IntensityConfig;
+  onChange: (partial: Partial<IntensityConfig>) => void;
+}
 
-  const estimatedTotal = Math.round(
-    ((intensity.minPerDay + intensity.maxPerDay) / 2) *
-      (intensity.activeDayPercentage / 100) *
-      90 // approximate days
-  );
-
+function IntensityEditor({ intensity, onChange }: IntensityEditorProps) {
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-semibold mb-1">Commit Intensity</h2>
-        <p className="text-sm text-muted-foreground">How many commits per day and how often</p>
-      </div>
-
       <div className="space-y-2">
         <Label>Intensity Preset</Label>
         <div className="grid grid-cols-5 gap-2">
           {INTENSITY_PRESETS.map((p) => (
             <button
               key={p.level}
-              onClick={() => updateIntensity({ level: p.level, minPerDay: p.min, maxPerDay: p.max })}
+              onClick={() => onChange({ level: p.level, minPerDay: p.min, maxPerDay: p.max })}
               className={`p-3 rounded border text-sm flex flex-col items-center gap-1 transition-colors ${
                 intensity.level === p.level
                   ? 'border-primary bg-primary/5 font-medium'
@@ -67,7 +59,7 @@ export function StepIntensity() {
             min={1}
             max={intensity.maxPerDay}
             value={intensity.minPerDay}
-            onChange={(e) => updateIntensity({ minPerDay: parseInt(e.target.value) || 1 })}
+            onChange={(e) => onChange({ minPerDay: parseInt(e.target.value) || 1 })}
           />
         </div>
         <div className="space-y-1">
@@ -77,7 +69,7 @@ export function StepIntensity() {
             min={intensity.minPerDay}
             max={50}
             value={intensity.maxPerDay}
-            onChange={(e) => updateIntensity({ maxPerDay: parseInt(e.target.value) || 1 })}
+            onChange={(e) => onChange({ maxPerDay: parseInt(e.target.value) || 1 })}
           />
         </div>
       </div>
@@ -89,9 +81,9 @@ export function StepIntensity() {
           max={100}
           step={5}
           value={[intensity.activeDayPercentage]}
-          onValueChange={(vals) => updateIntensity({ activeDayPercentage: Array.isArray(vals) ? vals[0] : vals })}
+          onValueChange={(vals) => onChange({ activeDayPercentage: Array.isArray(vals) ? vals[0] : vals })}
         />
-        <p className="text-xs text-muted-foreground">{intensity.activeDayPercentage}% of days in your range will have commits</p>
+        <p className="text-xs text-muted-foreground">{intensity.activeDayPercentage}% of days in this range will have commits</p>
       </div>
 
       <div className="space-y-2">
@@ -100,7 +92,7 @@ export function StepIntensity() {
           {CURVES.map((c) => (
             <button
               key={c.value}
-              onClick={() => updateIntensity({ distributionCurve: c.value })}
+              onClick={() => onChange({ distributionCurve: c.value })}
               className={`p-2 rounded border text-xs flex flex-col items-center gap-1 transition-colors ${
                 intensity.distributionCurve === c.value
                   ? 'border-primary bg-primary/5 font-medium'
@@ -113,12 +105,34 @@ export function StepIntensity() {
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+export function StepIntensity() {
+  const { config, updateRange, previewPlan } = useGeneratorStore();
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-semibold mb-1">Commit Intensity</h2>
+        <p className="text-sm text-muted-foreground">How many commits per day and how often</p>
+      </div>
+
+      <ProfileAccordion
+        title="Intensity"
+        renderRange={(range) => (
+          <IntensityEditor 
+            intensity={range.intensity} 
+            onChange={(partial) => updateRange(range.id, { 
+              intensity: { ...range.intensity, ...partial } 
+            })} 
+          />
+        )}
+      />
 
       <div className="p-3 bg-muted rounded text-sm">
-        Estimated total commits: <span className="font-medium">~{estimatedTotal}</span>
-        {estimatedTotal > 5000 && (
-          <span className="text-yellow-600 ml-2">Large — generation may take 30–60s</span>
-        )}
+        Total planned commits: <span className="font-medium">{previewPlan.length}</span>
       </div>
     </div>
   );

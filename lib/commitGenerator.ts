@@ -3,6 +3,7 @@ import { format, eachDayOfInterval, parseISO, getDay } from 'date-fns';
 import {
   GeneratorConfig, CommitPlan, FileChange,
   IntensityConfig, TimeConfig, CommitStyleConfig, AdvancedConfig,
+  ConfigRange
 } from './types';
 
 const LOREM_MESSAGES = [
@@ -77,61 +78,94 @@ const MULTI_FILES = [
 ];
 
 export function generateCommitPlan(config: GeneratorConfig): CommitPlan[] {
-  const seed = config.advanced.seed || String(Date.now());
+  const seed = (config.ranges[0]?.advanced?.seed) || String(Date.now());
   const rng = seedrandom(seed);
 
-  const allDates = eachDayOfInterval({
-    start: parseISO(config.dateRange.startDate),
-    end: parseISO(config.dateRange.endDate),
-  });
+  const skipDatesSet = new Set(config.skipDates);
 
-  const skipSet = new Set(config.dateRange.skipDates);
-  const skipWeekdaySet = new Set(config.dateRange.skipWeekdays);
+  const filterDatesInRange = (dates: Date[], range: ConfigRange) => {
+    const skipWeekdaySet = new Set(range.skipWeekdays);
+    return dates.filter((d) => {
+      const dateStr = format(d, 'yyyy-MM-dd');
+      if (skipDatesSet.has(dateStr)) return false;
+      const dow = getDay(d);
+      if (skipWeekdaySet.has(dow)) return false;
 
-  const filterDates = (dates: Date[]) => dates.filter((d) => {
-    const dateStr = format(d, 'yyyy-MM-dd');
-    if (skipSet.has(dateStr)) return false;
-    const dow = getDay(d); // 0=Sun, 6=Sat
-    if (skipWeekdaySet.has(dow)) return false;
-
-    const isWeekend = dow === 0 || dow === 6;
-    if (isWeekend) {
-      if (config.dateRange.weekendBehavior === 'skip') return false;
-      if (config.dateRange.weekendBehavior === 'only-weekends') return true;
-    } else {
-      if (config.dateRange.weekendBehavior === 'only-weekends') return false;
-    }
-    return true;
-  });
-
-  const filteredDates = filterDates(allDates);
-
-  // Apply activeDayPercentage
-  const targetActive = Math.round(filteredDates.length * (config.intensity.activeDayPercentage / 100));
-  const shuffled = [...filteredDates].sort(() => rng() - 0.5);
-  const activeDates = shuffled.slice(0, targetActive).sort((a, b) => a.getTime() - b.getTime());
+      const isWeekend = dow === 0 || dow === 6;
+      if (isWeekend) {
+        if (range.weekendBehavior === 'skip') return false;
+        if (range.weekendBehavior === 'only-weekends') return true;
+      } else {
+        if (range.weekendBehavior === 'only-weekends') return false;
+      }
+      return true;
+    });
+  };
 
   const plan: CommitPlan[] = [];
+  const assignedDates = new Set<string>();
   let commitIndex = 0;
 
-  // First pass: count total commits for simple-counter style
-  const rng1 = seedrandom(seed + '-count');
-  let totalCommits = 0;
-  for (let i = 0; i < activeDates.length; i++) {
-    totalCommits += getCommitCountForDay(i, activeDates.length, config.intensity, rng1);
+  const buckets: { 
+    range: ConfigRange;
+    dates: Date[];
+  }[] = [];
+
+  const activeRanges = (config.ranges || []).filter(r => r.enabled);
+  
+  for (let i = activeRanges.length - 1; i >= 0; i--) {
+    const range = activeRanges[i];
+    const rangeStart = parseISO(range.startDate);
+    const rangeEnd = parseISO(range.endDate);
+    
+    const rangeDates = eachDayOfInterval({ start: rangeStart, end: rangeEnd })
+      .filter(d => {
+        const ds = format(d, 'yyyy-MM-dd');
+        return !assignedDates.has(ds);
+      });
+    
+    if (rangeDates.length > 0) {
+      buckets.push({
+        range,
+        dates: filterDatesInRange(rangeDates, range),
+      });
+      rangeDates.forEach(d => assignedDates.add(format(d, 'yyyy-MM-dd')));
+    }
   }
 
-  const rng3 = seedrandom(seed + '-commits');
+  let totalCommits = 0;
+  const rngCount = seedrandom(seed + '-count');
+  const bucketCommits: { bucketIdx: number, activeDates: Date[], counts: number[] }[] = [];
 
-  for (let i = 0; i < activeDates.length; i++) {
-    const d = activeDates[i];
-    const count = getCommitCountForDay(i, activeDates.length, config.intensity, rng3);
-    for (let c = 0; c < count; c++) {
-      const datetime = getRandomTime(format(d, 'yyyy-MM-dd'), config.time, rng3);
-      const message = generateCommitMessage(commitIndex, totalCommits, config.style, rng3);
-      const filesChanged = generateFileChanges(commitIndex, config.advanced, rng3);
-      plan.push({ date: format(d, 'yyyy-MM-dd'), datetime, message, filesChanged });
-      commitIndex++;
+  for (let b = 0; b < buckets.length; b++) {
+    const bucket = buckets[b];
+    const targetActive = Math.round(bucket.dates.length * (bucket.range.intensity.activeDayPercentage / 100));
+    const shuffled = [...bucket.dates].sort(() => rngCount() - 0.5);
+    const activeDates = shuffled.slice(0, targetActive).sort((a, b) => a.getTime() - b.getTime());
+    
+    const counts: number[] = [];
+    for (let i = 0; i < activeDates.length; i++) {
+      const c = getCommitCountForDay(i, activeDates.length, bucket.range.intensity, rngCount);
+      counts.push(c);
+      totalCommits += c;
+    }
+    bucketCommits.push({ bucketIdx: b, activeDates, counts });
+  }
+
+  const rngCommits = seedrandom(seed + '-commits');
+
+  for (const bc of bucketCommits) {
+    const bucket = buckets[bc.bucketIdx];
+    for (let i = 0; i < bc.activeDates.length; i++) {
+      const d = bc.activeDates[i];
+      const count = bc.counts[i];
+      for (let c = 0; c < count; c++) {
+        const datetime = getRandomTime(format(d, 'yyyy-MM-dd'), bucket.range.time, rngCommits);
+        const message = generateCommitMessage(commitIndex, totalCommits, bucket.range.style, rngCommits);
+        const filesChanged = generateFileChanges(commitIndex, bucket.range.advanced, rngCommits);
+        plan.push({ date: format(d, 'yyyy-MM-dd'), datetime, message, filesChanged });
+        commitIndex++;
+      }
     }
   }
 
@@ -161,7 +195,6 @@ export function getCommitCountForDay(
       weight = (1 - progress) * rng();
       break;
     case 'bell':
-      // Approximate bell: peak at middle
       weight = Math.exp(-Math.pow((progress - 0.5) * 4, 2)) * rng();
       break;
     case 'random-spikes':
@@ -273,7 +306,6 @@ export function generateFileChanges(
     return [{ path: 'activity-log.txt', content }];
   }
 
-  // multi-file
   const fileCount = Math.min(config.simulatedFileCount ?? 3, MULTI_FILES.length);
   const fileIdx = commitIndex % fileCount;
   const filePath = MULTI_FILES[fileIdx];

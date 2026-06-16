@@ -2,7 +2,8 @@
 import { useGeneratorStore } from '@/store/generatorStore';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { CommitMessageStyle } from '@/lib/types';
+import { CommitMessageStyle, CommitStyleConfig } from '@/lib/types';
+import { ProfileAccordion } from '@/components/ProfileAccordion';
 
 const MESSAGE_STYLES: { value: CommitMessageStyle; label: string; example: string }[] = [
   { value: 'conventional', label: 'Conventional Commits', example: 'feat(auth): add OAuth support' },
@@ -13,30 +14,27 @@ const MESSAGE_STYLES: { value: CommitMessageStyle; label: string; example: strin
 
 const CONV_TYPES = ['feat', 'fix', 'chore', 'docs', 'refactor', 'test', 'style', 'perf', 'ci', 'build'];
 
-export function StepCommitStyle() {
-  const { config, updateStyle } = useGeneratorStore();
-  const { style } = config;
+interface StyleEditorProps {
+  style: CommitStyleConfig;
+  onChange: (partial: Partial<CommitStyleConfig>) => void;
+}
 
+function StyleEditor({ style, onChange }: StyleEditorProps) {
   const toggleConvType = (type: string) => {
     const current = style.conventionalTypes || [];
-    updateStyle({
-      conventionalTypes: current.includes(type) ? current.filter((t) => t !== type) : [...current, type],
+    onChange({
+      conventionalTypes: current.includes(type) ? current.filter((t: string) => t !== type) : [...current, type],
     });
   };
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-semibold mb-1">Commit Style</h2>
-        <p className="text-sm text-muted-foreground">Author info and message format</p>
-      </div>
-
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1">
           <Label>Author Name</Label>
           <Input
             value={style.authorName}
-            onChange={(e) => updateStyle({ authorName: e.target.value })}
+            onChange={(e) => onChange({ authorName: e.target.value })}
             placeholder="Your Name"
           />
         </div>
@@ -45,12 +43,21 @@ export function StepCommitStyle() {
           <Input
             type="email"
             value={style.authorEmail}
-            onChange={(e) => updateStyle({ authorEmail: e.target.value })}
+            onChange={(e) => onChange({ authorEmail: e.target.value })}
             placeholder="you@example.com"
           />
         </div>
       </div>
-      <p className="text-xs text-amber-600">Email must match your GitHub account for contributions to count</p>
+      
+      <div className="space-y-1">
+        <Label>Branch Name</Label>
+        <Input
+          value={style.branchName}
+          onChange={(e) => onChange({ branchName: e.target.value })}
+          placeholder="main"
+        />
+        <p className="text-[10px] text-muted-foreground mt-1">Target branch for commits in this range</p>
+      </div>
 
       <div className="space-y-2">
         <Label>Commit Message Style</Label>
@@ -58,7 +65,7 @@ export function StepCommitStyle() {
           {MESSAGE_STYLES.map((s) => (
             <button
               key={s.value}
-              onClick={() => updateStyle({ messageStyle: s.value })}
+              onClick={() => onChange({ messageStyle: s.value })}
               className={`p-3 rounded border text-sm text-left space-y-1 transition-colors ${
                 style.messageStyle === s.value
                   ? 'border-primary bg-primary/5 font-medium'
@@ -99,7 +106,7 @@ export function StepCommitStyle() {
           <textarea
             className="w-full h-32 p-2 border rounded text-sm font-mono resize-none bg-background"
             value={(style.customMessages || []).join('\n')}
-            onChange={(e) => updateStyle({ customMessages: e.target.value.split('\n').filter(Boolean) })}
+            onChange={(e) => onChange({ customMessages: e.target.value.split('\n').filter(Boolean) })}
             placeholder="fix login bug&#10;add dark mode&#10;update docs"
           />
         </div>
@@ -109,29 +116,45 @@ export function StepCommitStyle() {
         <Label>Message Prefix (optional)</Label>
         <Input
           value={style.prefix || ''}
-          onChange={(e) => updateStyle({ prefix: e.target.value })}
+          onChange={(e) => onChange({ prefix: e.target.value })}
           placeholder="e.g. [WIP]"
         />
       </div>
+    </div>
+  );
+}
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-1">
-          <Label>Branch Name</Label>
-          <Input
-            value={style.branchName}
-            onChange={(e) => updateStyle({ branchName: e.target.value })}
-            placeholder="main"
-          />
+export function StepCommitStyle() {
+  const { config, updateGlobalConfig, updateRange } = useGeneratorStore();
+
+  return (
+    <div className="space-y-6">
+      <div className="space-y-4">
+        <div>
+          <h2 className="text-xl font-semibold mb-1">Commit Style</h2>
+          <p className="text-sm text-muted-foreground">Configure repo name and range-specific author/branch details</p>
         </div>
         <div className="space-y-1">
           <Label>Repo/Folder Name</Label>
           <Input
-            value={style.repoName}
-            onChange={(e) => updateStyle({ repoName: e.target.value })}
+            value={config.repoName}
+            onChange={(e) => updateGlobalConfig({ repoName: e.target.value })}
             placeholder="my-project"
           />
         </div>
       </div>
+
+      <ProfileAccordion
+        title="Style"
+        renderRange={(range) => (
+          <StyleEditor 
+            style={range.style} 
+            onChange={(partial) => updateRange(range.id, { 
+              style: { ...range.style, ...partial } 
+            })} 
+          />
+        )}
+      />
     </div>
   );
 }
