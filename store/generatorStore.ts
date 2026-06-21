@@ -63,6 +63,12 @@ interface GeneratorStore {
   isGenerating: boolean;
   generationProgress: number;
 
+  githubUsername: string | null;
+  githubContributions: Record<string, number> | null;
+  showCombined: boolean;
+  githubLoading: boolean;
+  githubError: string | null;
+
   setAppMode: (mode: AppMode) => void;
   setStep: (step: number) => void;
   
@@ -80,6 +86,21 @@ interface GeneratorStore {
   setIsGenerating: (v: boolean) => void;
   setProgress: (v: number) => void;
   resetConfig: () => void;
+
+  setGithubUsername: (u: string | null) => void;
+  setGithubContributions: (c: Record<string, number> | null) => void;
+  setShowCombined: (v: boolean) => void;
+  setGithubLoading: (v: boolean) => void;
+  setGithubError: (e: string | null) => void;
+  disconnectGithub: () => void;
+  fetchGithubContributions: (usernameOrUrl: string) => Promise<void>;
+}
+
+function extractGithubUsername(input: string): string {
+  const trimmed = input.trim();
+  if (!trimmed) return '';
+  const urlMatch = trimmed.match(/(?:github\.com\/|^)([a-zA-Z0-9-]{1,39})(?:\/|\?|$)/);
+  return urlMatch ? urlMatch[1] : trimmed;
 }
 
 export const useGeneratorStore = create<GeneratorStore>()(
@@ -95,6 +116,12 @@ export const useGeneratorStore = create<GeneratorStore>()(
       selectedDate: null,
       isGenerating: false,
       generationProgress: 0,
+
+      githubUsername: null,
+      githubContributions: null,
+      showCombined: true,
+      githubLoading: false,
+      githubError: null,
 
       setAppMode: (mode) => set({ appMode: mode }),
       setStep: (step) => set({ currentStep: step }),
@@ -146,8 +173,54 @@ export const useGeneratorStore = create<GeneratorStore>()(
         uploadedCommits: [],
         uploadedFile: null,
         selectedDate: null,
-        appMode: 'idle'
+        appMode: 'idle',
+        githubUsername: null,
+        githubContributions: null,
+        showCombined: true,
+        githubLoading: false,
+        githubError: null,
       }),
+
+      setGithubUsername: (u) => set({ githubUsername: u }),
+      setGithubContributions: (c) => set({ githubContributions: c }),
+      setShowCombined: (v) => set({ showCombined: v }),
+      setGithubLoading: (v) => set({ githubLoading: v }),
+      setGithubError: (e) => set({ githubError: e }),
+      disconnectGithub: () => set({
+        githubUsername: null,
+        githubContributions: null,
+        githubError: null,
+        githubLoading: false,
+      }),
+      fetchGithubContributions: async (usernameOrUrl) => {
+        const username = extractGithubUsername(usernameOrUrl);
+        if (!username) {
+          set({ githubError: 'Please enter a valid GitHub username or profile link.' });
+          return;
+        }
+
+        set({ githubLoading: true, githubError: null });
+        try {
+          const res = await fetch(`/api/github-contributions?username=${encodeURIComponent(username)}`);
+          const data = await res.json();
+
+          if (!res.ok) {
+            throw new Error(data.error || 'Failed to fetch contributions.');
+          }
+
+          set({
+            githubUsername: username,
+            githubContributions: data.contributions,
+            githubLoading: false,
+            githubError: null,
+          });
+        } catch (err: any) {
+          set({
+            githubLoading: false,
+            githubError: err.message || 'An error occurred while connecting to GitHub.',
+          });
+        }
+      },
     }),
     { name: 'gitpainter-config-v3' }
   )

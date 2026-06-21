@@ -16,6 +16,8 @@ interface Props {
   skipDates?: string[];
   onDayClick?: (date: string) => void;
   selectedDate?: string | null;
+  githubContributions?: Record<string, number> | null;
+  showCombined?: boolean;
 }
 
 function getColor(count: number): string {
@@ -26,7 +28,7 @@ function getColor(count: number): string {
   return 'bg-[#39d353]';
 }
 
-export function CalendarHeatmap({ plan, startDate, endDate, skipDates = [], onDayClick, selectedDate }: Props) {
+export function CalendarHeatmap({ plan, startDate, endDate, skipDates = [], onDayClick, selectedDate, githubContributions, showCombined = true }: Props) {
   const [activeYear, setActiveYear] = useState<number>(() => {
     if (endDate) return getYear(parseISO(endDate));
     if (plan.length > 0) {
@@ -53,9 +55,9 @@ export function CalendarHeatmap({ plan, startDate, endDate, skipDates = [], onDa
   }, [startDate, endDate]);
 
   const { weeks, monthLabels } = useMemo(() => {
-    const commitMap = new Map<string, number>();
+    const planMap = new Map<string, number>();
     for (const c of plan) {
-      commitMap.set(c.date, (commitMap.get(c.date) || 0) + 1);
+      planMap.set(c.date, (planMap.get(c.date) || 0) + 1);
     }
     const skipSet = new Set(skipDates);
 
@@ -66,15 +68,23 @@ export function CalendarHeatmap({ plan, startDate, endDate, skipDates = [], onDa
     const displayStart = addDays(yearStart, -yearStart.getDay());
     const weekStarts = eachWeekOfInterval({ start: displayStart, end: yearEnd }, { weekStartsOn: 0 });
 
+    const showCombinedData = showCombined && githubContributions;
+
     const weeks = weekStarts.map((weekStart) =>
       Array.from({ length: 7 }, (_, i) => {
         const day = addDays(weekStart, i);
         const dateStr = format(day, 'yyyy-MM-dd');
         const inYear = getYear(day) === activeYear;
+
+        const planCount = planMap.get(dateStr) || 0;
+        const githubCount = showCombinedData ? (githubContributions[dateStr] || 0) : 0;
+        const totalCount = planCount + githubCount;
         
         return {
           date: dateStr,
-          count: commitMap.get(dateStr) || 0,
+          count: totalCount,
+          planCount,
+          githubCount,
           inYear,
           skipped: skipSet.has(dateStr),
           fullDate: day,
@@ -97,7 +107,7 @@ export function CalendarHeatmap({ plan, startDate, endDate, skipDates = [], onDa
     });
 
     return { weeks, monthLabels };
-  }, [plan, skipDates, activeYear]);
+  }, [plan, skipDates, activeYear, githubContributions, showCombined]);
 
   return (
     <div className="flex gap-4">
@@ -144,8 +154,27 @@ export function CalendarHeatmap({ plan, startDate, endDate, skipDates = [], onDa
                                   : getColor(day.count)
                               }`}
                             />
-                            <TooltipContent side="top" className="text-[11px] px-2 py-1">
-                              <span className="font-medium">{day.count} contributions</span> on {format(day.fullDate, 'MMM d, yyyy')}
+                            <TooltipContent side="top" className="px-3 py-2 rounded-md shadow-xl border border-zinc-200 bg-foreground text-background">
+                              <div className="flex flex-col gap-1 min-w-[130px] text-left">
+                                <div className="font-semibold text-zinc-900">
+                                  {day.count} {day.count === 1 ? 'contribution' : 'contributions'}
+                                </div>
+                                <div className="text-[10px] text-zinc-500">
+                                  on {format(day.fullDate, 'MMM d, yyyy')}
+                                </div>
+                                {showCombined && githubContributions && (day.planCount > 0 || day.githubCount > 0) && (
+                                  <div className="text-[10px] border-t border-zinc-200 pt-1 mt-1.5 flex flex-col gap-1">
+                                    <div className="flex justify-between gap-4">
+                                      <span className="text-zinc-500">Current repo:</span>
+                                      <span className="font-semibold text-emerald-600">{day.planCount}</span>
+                                    </div>
+                                    <div className="flex justify-between gap-4">
+                                      <span className="text-zinc-500">GitHub:</span>
+                                      <span className="font-semibold text-zinc-800">{day.githubCount}</span>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
                             </TooltipContent>
                           </Tooltip>
                         );

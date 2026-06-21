@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef, useState } from 'react';
 import { useGeneratorStore } from '@/store/generatorStore';
 import { generateCommitPlan } from '@/lib/commitGenerator';
 import { StepDateRange } from '@/components/steps/StepDateRange';
@@ -44,8 +44,24 @@ export default function Home() {
     setAppMode,
     selectedDate,
     setSelectedDate,
-    manualOverrides
+    manualOverrides,
+    githubUsername,
+    githubContributions,
+    showCombined,
+    githubLoading,
+    githubError,
+    setShowCombined,
+    disconnectGithub,
+    fetchGithubContributions
   } = useGeneratorStore();
+
+  const [githubInput, setGithubInput] = useState(githubUsername || '');
+
+  useEffect(() => {
+    if (githubUsername) {
+      setGithubInput(githubUsername);
+    }
+  }, [githubUsername]);
   const contentRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
@@ -263,6 +279,87 @@ export default function Home() {
                 </div>
               </div>
             </div>
+
+            {/* GitHub Connection & Toggle Bar */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 border-b border-border/40 pb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-1 max-w-xl">
+                {!githubUsername ? (
+                  <form 
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (githubInput.trim()) fetchGithubContributions(githubInput);
+                    }}
+                    className="flex flex-col gap-1 w-full"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">GitHub Sync:</span>
+                      <div className="relative flex-1">
+                        <input
+                          type="text"
+                          placeholder="GitHub username or profile link"
+                          value={githubInput}
+                          onChange={(e) => setGithubInput(e.target.value)}
+                          disabled={githubLoading}
+                          className="w-full text-xs bg-muted/40 border border-border/80 rounded-md pl-2 pr-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary disabled:opacity-50"
+                        />
+                      </div>
+                      <Button 
+                        type="submit" 
+                        size="sm" 
+                        disabled={githubLoading || !githubInput.trim()}
+                        className="h-8 px-3 text-xs"
+                      >
+                        {githubLoading ? 'Connecting...' : 'Connect'}
+                      </Button>
+                    </div>
+                    {githubError && (
+                      <span className="text-[10px] text-red-500 font-medium pl-[80px]">{githubError}</span>
+                    )}
+                  </form>
+                ) : (
+                  <div className="flex items-center gap-2.5 text-xs text-muted-foreground w-full justify-between sm:justify-start">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-muted-foreground">GitHub Sync:</span>
+                      <div className="flex items-center gap-1.5 bg-primary/10 border border-primary/20 px-2 py-1 rounded-md text-foreground font-medium">
+                        <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                        {githubUsername}
+                      </div>
+                      <button
+                        onClick={disconnectGithub}
+                        className="text-[10px] hover:text-red-500 underline transition-colors cursor-pointer ml-1"
+                      >
+                        Disconnect
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {githubUsername && (
+                <div className="flex items-center gap-1.5 bg-muted/60 p-0.5 rounded-lg border border-border/40 shrink-0">
+                  <button
+                    onClick={() => setShowCombined(false)}
+                    className={`px-2.5 py-1 text-xs rounded-md font-medium transition-all cursor-pointer ${
+                      !showCombined
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    Current Repo Only
+                  </button>
+                  <button
+                    onClick={() => setShowCombined(true)}
+                    className={`px-2.5 py-1 text-xs rounded-md font-medium transition-all cursor-pointer ${
+                      showCombined
+                        ? 'bg-primary text-primary-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    Combined Show All
+                  </button>
+                </div>
+              )}
+            </div>
             
             <CalendarHeatmap
               plan={previewPlan}
@@ -271,6 +368,8 @@ export default function Home() {
               skipDates={config.skipDates}
               onDayClick={setSelectedDate}
               selectedDate={selectedDate}
+              githubContributions={githubContributions}
+              showCombined={showCombined}
             />
           </div>
 
